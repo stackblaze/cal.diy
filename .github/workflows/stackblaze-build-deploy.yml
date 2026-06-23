@@ -1,0 +1,88 @@
+name: Build & Deploy (Stackblaze)
+
+# Builds the gate-free cal.diy image on the self-hosted kubero runner and
+# rolls it out to the kubero-prod "cal" namespace. Mirrors the libredesk fork CI.
+on:
+  push:
+    branches: [sb/no-license-gate]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+  workflow_dispatch:
+    inputs:
+      extra_tag:
+        description: "Extra image tag (e.g. v6.2.0-sb2)"
+        required: false
+        default: ""
+      deploy:
+        description: "Roll out to kubero-prod after build"
+        type: boolean
+        default: true
+
+concurrency:
+  group: cal-build-deploy
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/stackblaze/cal.diy
+
+jobs:
+  build:
+    runs-on: [self-hosted, kubero]
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_sha: ${{ steps.meta.outputs.image_sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute tags
+        id: meta
+        run: |
+          SHORT=${GITHUB_SHA::7}
+          echo "short=${SHORT}" >> "$GITHUB_OUTPUT"
+          echo "image_sha=${IMAGE}:sha-${SHORT}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u stackblaze --password-stdin
+
+      - name: Ensure buildx builder
+        run: docker buildx inspect kubero-shared-builder >/dev/null 2>&1 || docker buildx create --name kubero-shared-builder --driver docker-container --use
+
+      - name: Build & push image
+        run: |
+          TAGS="-t ${IMAGE}:sha-${{ steps.meta.outputs.short }} -t ${IMAGE}:latest"
+          if [ -n "${{ github.event.inputs.extra_tag }}" ]; then
+            TAGS="$TAGS -t ${IMAGE}:${{ github.event.inputs.extra_tag }}"
+          fi
+          docker buildx build \
+            --builder kubero-shared-builder \
+            --build-arg MAX_OLD_SPACE_SIZE=8192 \
+            --build-arg DATABASE_URL=postgresql://u:p@localhost:5432/db \
+            --build-arg NEXT_PUBLIC_WEBAPP_URL=http://NEXT_PUBLIC_WEBAPP_URL_PLACEHOLDER \
+            $TAGS \
+            --push .
+
+  deploy:
+    needs: build
+    if: ${{ github.event_name == 'push' || github.event.inputs.deploy == 'true' }}
+    runs-on: [self-hosted, kubero]
+    steps:
+      - name: Write kubeconfig
+        run: |
+          mkdir -p "$RUNNER_TEMP/.kube"
+          echo "${{ secrets.KUBE_CONFIG_PROD }}" | base64 -d > "$RUNNER_TEMP/.kube/config"
+          chmod 600 "$RUNNER_TEMP/.kube/config"
+
+      - name: Roll out new image
+        env:
+          KUBECONFIG: ${{ runner.temp }}/.kube/config
+        run: |
+          kubectl -n cal set image deploy/cal cal=${{ needs.build.outputs.image_sha }}
+          kubectl -n cal rollout status deploy/cal --timeout=480s
+          kubectl -n cal get pods -o wide
+
+      - name: Cleanup kubeconfig
+        if: always()
+        run: rm -f "$RUNNER_TEMP/.kube/config"

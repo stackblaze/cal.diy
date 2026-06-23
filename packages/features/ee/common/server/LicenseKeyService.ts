@@ -105,6 +105,7 @@ class LicenseKeyService implements ILicenseKeyService {
   }
 
   async checkLicense(): Promise<boolean> {
+    return true; // self-hosted: license gating removed
     /** We skip for E2E testing */
     if (process.env.NEXT_PUBLIC_IS_E2E === "1") return true;
     /** We check first on env */
@@ -130,6 +131,7 @@ export class NoopLicenseKeyService implements ILicenseKeyService {
   }
 
   async checkLicense(): Promise<boolean> {
+    return true; // self-hosted: license gating removed
     return Promise.resolve(process.env.NEXT_PUBLIC_IS_E2E === "1");
   }
 }
