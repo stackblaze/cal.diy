@@ -431,6 +431,7 @@ export default function Login({
                   disabled={sendingMagicLink}
                   onClick={sendMagicLink}>
                   {sendingMagicLink ? t("sending") : t("email_me_a_signin_link") || "Email me a sign-in link"}
+                  {lastUsed === "email" && <LastUsed />}
                 </Button>
                 {magicLinkSent && (
                   <p className="text-center text-sm text-subtle" data-testid="magic-link-sent">
