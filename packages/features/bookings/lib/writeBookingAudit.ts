@@ -1,4 +1,6 @@
-import { BookingAuditAction, BookingAuditType } from "@calcom/prisma/enums";
+import { randomUUID } from "node:crypto";
+
+import { BookingAuditAction, BookingAuditSource, BookingAuditType } from "@calcom/prisma/enums";
 import type { PrismaClient } from "@calcom/prisma";
 
 export async function writeBookingAudit(
@@ -19,6 +21,8 @@ export async function writeBookingAudit(
         type: BookingAuditType.RECORD_CREATED,
         action,
         timestamp: new Date(),
+        source: BookingAuditSource.SYSTEM,
+        operationId: randomUUID(),
       },
     });
   } catch (error) {

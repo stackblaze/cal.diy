@@ -2443,9 +2443,7 @@ async function handler(
       const trigger =
         eventTrigger === WebhookTriggerEvents.BOOKING_RESCHEDULED
           ? "BOOKING_RESCHEDULED"
-          : eventTrigger === WebhookTriggerEvents.BOOKING_CANCELLED
-            ? "BOOKING_CANCELLED"
-            : "BOOKING_CREATED";
+          : "BOOKING_CREATED";
       await runExtWorkflows({
         trigger,
         eventTypeId: eventType.id,
