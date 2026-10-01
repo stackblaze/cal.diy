@@ -62,10 +62,11 @@ export async function sendSignupToOrganizationEmail(_args: {
   // No-op: organization signup emails are not available in community edition
 }
 
-// verifyEmailCodeHandler stub — used by verified-resources service
-export async function verifyEmailCodeHandler(_opts: {
+export async function verifyEmailCodeHandler(opts: {
   input: { code: string; email: string; teamId?: number };
   ctx?: { user?: { id: number } };
 }): Promise<boolean> {
-  return false;
+  const { verifyCodeUnAuthenticated } = await import("@calcom/features/auth/lib/verifyCodeUnAuthenticated");
+  await verifyCodeUnAuthenticated(opts.input.email, opts.input.code);
+  return true;
 }

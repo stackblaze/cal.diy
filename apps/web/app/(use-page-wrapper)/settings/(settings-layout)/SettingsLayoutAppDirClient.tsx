@@ -98,6 +98,33 @@ const getTabs = (
       ],
     },
     {
+      name: "teams",
+      href: "/settings/teams",
+      icon: "users",
+      children: [
+        {
+          name: "teams",
+          href: "/settings/teams",
+          trackingMetadata: { section: "teams", page: "list" },
+        },
+        {
+          name: "workflows",
+          href: "/settings/workflows",
+          trackingMetadata: { section: "teams", page: "workflows" },
+        },
+        {
+          name: "routing_forms",
+          href: "/settings/routing",
+          trackingMetadata: { section: "teams", page: "routing" },
+        },
+        {
+          name: "insights",
+          href: "/settings/insights",
+          trackingMetadata: { section: "teams", page: "insights" },
+        },
+      ],
+    },
+    {
       name: "developer",
       href: "/settings/developer",
       icon: "terminal",
@@ -117,6 +144,11 @@ const getTabs = (
           name: "api_keys",
           href: "/settings/developer/api-keys",
           trackingMetadata: { section: "developer", page: "api_keys" },
+        },
+        {
+          name: "mcp",
+          href: "/settings/developer/mcp",
+          trackingMetadata: { section: "developer", page: "mcp" },
         },
         {
           name: "api_docs",
@@ -169,6 +201,16 @@ const getTabs = (
           name: "directory_sync",
           href: "/settings/organizations/dsync",
           trackingMetadata: { section: "organization", page: "directory_sync" },
+        },
+        {
+          name: "attributes",
+          href: "/settings/organizations/attributes",
+          trackingMetadata: { section: "organization", page: "attributes" },
+        },
+        {
+          name: "members",
+          href: "/settings/organizations/members",
+          trackingMetadata: { section: "organization", page: "members" },
         },
         {
           name: "api_docs",
@@ -278,7 +320,10 @@ const useTabs = ({
 }) => {
   const session = useSession();
   const { data: user } = trpc.viewer.me.get.useQuery({ includePasswordAdded: true });
-  const orgBranding = null as { id?: number; slug?: string; name?: string; logoUrl?: string | null } | null;
+  const { data: org } = trpc.viewer.organizations.mine.useQuery();
+  const orgBranding = org
+    ? { id: org.id, slug: org.slug || undefined, name: org.name, logoUrl: org.logoUrl }
+    : null;
   const isAdmin = session.data?.user.role === UserPermissionRole.ADMIN;
 
   const processTabsMemod = useMemo(() => {
@@ -367,7 +412,7 @@ const useTabs = ({
 
     // check if name is in adminRequiredKeys
     return processedTabs.filter((tab) => {
-      if (organizationRequiredKeys.includes(tab.name)) return !!orgBranding;
+      if (organizationRequiredKeys.includes(tab.name)) return true;
       if (tab.name === "other_teams" && !permissions?.canUpdateOrganization) return false;
 
       if (isAdmin) return true;

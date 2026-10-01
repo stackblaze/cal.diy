@@ -365,6 +365,39 @@ providers.push(
   })
 );
 
+providers.push(
+  CredentialsProvider({
+    id: "impersonate",
+    name: "Impersonate",
+    credentials: { token: { label: "Token", type: "text" } },
+    async authorize(credentials) {
+      const token = credentials?.token;
+      if (!token) return null;
+      const row = await prisma.verificationToken.findUnique({ where: { token } });
+      if (!row || row.expires < new Date()) return null;
+      if (
+        !row.identifier.startsWith("impersonate:") &&
+        !row.identifier.startsWith("saml:") &&
+        !row.identifier.startsWith("otp:")
+      ) {
+        return null;
+      }
+      const parts = row.identifier.split(":");
+      const userId = Number(parts[parts.length - 1]);
+      await prisma.verificationToken.delete({ where: { id: row.id } }).catch(() => undefined);
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) return null;
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        username: user.username,
+        role: user.role,
+      };
+    },
+  })
+);
+
 function isNumber(n: string) {
   return !Number.isNaN(parseFloat(n)) && !Number.isNaN(+n);
 }

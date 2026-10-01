@@ -88,7 +88,8 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
     props: {
       csrfToken: await getCsrfToken(context),
       isGoogleLoginEnabled: IS_GOOGLE_LOGIN_ENABLED,
-      isOutlookLoginEnabled: false,
+      isOutlookLoginEnabled: !!(process.env.OUTLOOK_CLIENT_ID && process.env.OUTLOOK_CLIENT_SECRET),
+      isSamlLoginEnabled: !!process.env.SAML_ENTRY_POINT,
       totpEmail,
     },
   };

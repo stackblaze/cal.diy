@@ -105,6 +105,7 @@ export default function Login({
   csrfToken,
   isGoogleLoginEnabled,
   isOutlookLoginEnabled,
+  isSamlLoginEnabled,
   totpEmail,
 }: PageProps) {
   const searchParams = useCompatSearchParams();
@@ -116,7 +117,7 @@ export default function Login({
         .string()
         .min(1, `${t("error_required_field")}`)
         .regex(emailRegex, `${t("enter_valid_email")}`),
-      ...(totpEmail ? {} : { password: z.string().min(1, `${t("error_required_field")}`) }),
+      password: z.string().optional(),
     })
     // Passthrough other fields like totpCode
     .passthrough();
@@ -127,6 +128,11 @@ export default function Login({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastUsed, setLastUsed] = useLastUsed();
   const [showPassword, setShowPassword] = useState(false);
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [sendingMagicLink, setSendingMagicLink] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [sendingOtp, setSendingOtp] = useState(false);
 
   const errorMessages: { [key: string]: string } = {
     // [ErrorCode.SecondFactorRequired]: t("2fa_enabled_instructions"),
@@ -150,9 +156,89 @@ export default function Login({
 
   callbackUrl = safeCallbackUrl || "";
 
+  const sendMagicLink = async () => {
+    setErrorMessage(null);
+    const email = methods.getValues("email");
+    if (!email) {
+      methods.setError("email", { message: t("error_required_field") });
+      return;
+    }
+    setSendingMagicLink(true);
+    try {
+      const res = await signIn("email", {
+        email: email.toLowerCase(),
+        callbackUrl,
+        redirect: false,
+      });
+      if (res?.error) {
+        setErrorMessage(t("something_went_wrong"));
+      } else {
+        setMagicLinkSent(true);
+        setLastUsed("email");
+      }
+    } catch {
+      setErrorMessage(t("something_went_wrong"));
+    } finally {
+      setSendingMagicLink(false);
+    }
+  };
+
+  const sendOtp = async () => {
+    setErrorMessage(null);
+    const email = methods.getValues("email");
+    if (!email) {
+      methods.setError("email", { message: t("error_required_field") });
+      return;
+    }
+    setSendingOtp(true);
+    try {
+      const res = await fetch("/api/auth/otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.toLowerCase(), action: "send" }),
+      });
+      if (!res.ok) {
+        setErrorMessage(t("something_went_wrong"));
+        return;
+      }
+      setOtpSent(true);
+    } catch {
+      setErrorMessage(t("something_went_wrong"));
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const verifyOtp = async () => {
+    setErrorMessage(null);
+    const email = methods.getValues("email");
+    if (!email || !otpCode) return;
+    setSendingOtp(true);
+    try {
+      const res = await fetch("/api/auth/otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.toLowerCase(), action: "verify", code: otpCode }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.token) {
+        setErrorMessage(t("incorrect_2fa_code") || "Invalid code");
+        return;
+      }
+      await signIn("impersonate", { token: data.token, callbackUrl });
+    } catch {
+      setErrorMessage(t("something_went_wrong"));
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
   const onSubmit = async (values: LoginValues) => {
     setErrorMessage(null);
-    // telemetry.event(telemetryEventTypes.login, collectPageParameters());
+    if (!values.password) {
+      methods.setError("password", { message: t("error_required_field") });
+      return;
+    }
     const res = await signIn<"credentials">("credentials", {
       ...values,
       callbackUrl,
@@ -170,7 +256,7 @@ export default function Login({
     else setErrorMessage(errorMessages[res.error] || t("something_went_wrong"));
   };
 
-  const showSocialLogin = isGoogleLoginEnabled || isOutlookLoginEnabled;
+  const showSocialLogin = isGoogleLoginEnabled || isOutlookLoginEnabled || isSamlLoginEnabled;
   const showSignupLink =
     process.env.NEXT_PUBLIC_DISABLE_SIGNUP !== "true" && searchParams?.get("register") !== "false";
 
@@ -228,6 +314,18 @@ export default function Login({
                       <MicrosoftIcon />
                       <span>{t("signin_with_microsoft")}</span>
                       {lastUsed === "microsoft" && <LastUsed />}
+                    </Button>
+                  )}
+                  {isSamlLoginEnabled && (
+                    <Button
+                      variant="outline"
+                      className="w-full py-1"
+                      data-testid="saml"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        window.location.href = `/api/auth/saml?callbackUrl=${encodeURIComponent(callbackUrl)}`;
+                      }}>
+                      <span>{t("signin_with_saml") || "Sign in with SAML"}</span>
                     </Button>
                   )}
                 </div>
@@ -317,6 +415,53 @@ export default function Login({
                 {twoFactorRequired ? t("submit") : t("continue")}
               </Button>
             </form>
+
+            {!twoFactorRequired && (
+              <div className="mt-4 space-y-3">
+                <div className="flex items-center gap-4">
+                  <Separator className="flex-1" />
+                  <span className="text-sm text-zinc-400">{t("or").toLowerCase()}</span>
+                  <Separator className="flex-1" />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  data-testid="magic-link-login"
+                  disabled={sendingMagicLink}
+                  onClick={sendMagicLink}>
+                  {sendingMagicLink ? t("sending") : t("email_me_a_signin_link") || "Email me a sign-in link"}
+                </Button>
+                {magicLinkSent && (
+                  <p className="text-center text-sm text-subtle" data-testid="magic-link-sent">
+                    {t("check_your_inbox") || "Check your inbox for a sign-in link. It expires in 10 minutes."}
+                  </p>
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  data-testid="otp-login"
+                  disabled={sendingOtp}
+                  onClick={sendOtp}>
+                  {sendingOtp ? t("sending") : t("email_me_a_code") || "Email me a one-time code"}
+                </Button>
+                {otpSent && (
+                  <div className="flex gap-2">
+                    <input
+                      className="border-subtle bg-default w-full rounded-md border px-3 py-2 text-sm"
+                      placeholder="123456"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value)}
+                      inputMode="numeric"
+                    />
+                    <Button type="button" onClick={verifyOtp} disabled={sendingOtp}>
+                      Verify
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Two Factor Footer */}
             {twoFactorRequired && (

@@ -2849,3 +2849,57 @@ model AttributeSyncFieldMapping {
   @@unique([integrationAttributeSyncId, attributeId])
   @@index([integrationAttributeSyncId])
 }
+
+model ExtWorkflow {
+  id          Int               @id @default(autoincrement())
+  name        String
+  trigger     String
+  userId      Int
+  teamId      Int?
+  eventTypeId Int?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  steps       ExtWorkflowStep[]
+
+  @@index([userId])
+  @@index([teamId])
+  @@index([eventTypeId])
+}
+
+model ExtWorkflowStep {
+  id         Int         @id @default(autoincrement())
+  workflowId Int
+  workflow   ExtWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  action     String
+  template   String
+  createdAt  DateTime    @default(now())
+
+  @@index([workflowId])
+}
+
+model ExtRoutingForm {
+  id        Int                     @id @default(autoincrement())
+  name      String
+  userId    Int
+  teamId    Int?
+  fields    Json
+  routes    Json
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+  responses ExtRoutingFormResponse[]
+
+  @@index([userId])
+  @@index([teamId])
+}
+
+model ExtRoutingFormResponse {
+  id             Int            @id @default(autoincrement())
+  formId         Int
+  form           ExtRoutingForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  answers        Json
+  assignedUserId Int?
+  assignedTeamId Int?
+  createdAt      DateTime       @default(now())
+
+  @@index([formId])
+}

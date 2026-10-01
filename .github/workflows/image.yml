@@ -1,0 +1,80 @@
+name: Build fork image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency:
+  group: cal-diy-images-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: [self-hosted, us-east-1]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image tag
+        id: ver
+        run: echo "short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Start build database
+        id: db
+        run: |
+          name="caldiy-pg-${GITHUB_RUN_ID}"
+          docker rm -f "$name" 2>/dev/null || true
+          docker run -d --name "$name" \
+            -e POSTGRES_USER=unicorn_user \
+            -e POSTGRES_PASSWORD=magical_password \
+            -e POSTGRES_DB=calendso \
+            postgres:16
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          for i in $(seq 1 40); do
+            docker exec "$name" pg_isready -U unicorn_user && exit 0
+            sleep 2
+          done
+          echo "postgres did not become ready" >&2
+          exit 1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            network=container:${{ steps.db.outputs.name }}
+          buildkitd-flags: |
+            --allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ghcr.io/stackblaze/cal-diy:latest
+            ghcr.io/stackblaze/cal-diy:sha-${{ steps.ver.outputs.short }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/stackblaze/cal.diy
+          build-args: |
+            NEXT_PUBLIC_WEBAPP_URL=http://localhost:3000
+            NEXT_PUBLIC_LICENSE_CONSENT=agree
+            DATABASE_URL=postgresql://unicorn_user:magical_password@127.0.0.1:5432/calendso
+            DATABASE_DIRECT_URL=postgresql://unicorn_user:magical_password@127.0.0.1:5432/calendso
+
+      - name: Cleanup build database
+        if: always()
+        run: docker rm -f "caldiy-pg-${GITHUB_RUN_ID}" 2>/dev/null || true

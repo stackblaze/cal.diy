@@ -2437,6 +2437,34 @@ async function handler(
       isDryRun,
       traceContext,
     });
+
+    if (!isDryRun) {
+      const { runExtWorkflows } = await import("@calcom/features/workflows/runExtWorkflows");
+      const trigger =
+        eventTrigger === WebhookTriggerEvents.BOOKING_RESCHEDULED
+          ? "BOOKING_RESCHEDULED"
+          : eventTrigger === WebhookTriggerEvents.BOOKING_CANCELLED
+            ? "BOOKING_CANCELLED"
+            : "BOOKING_CREATED";
+      await runExtWorkflows({
+        trigger,
+        eventTypeId: eventType.id,
+        teamId: eventType.team?.id ?? (eventType as { teamId?: number }).teamId,
+        userId: organizerUser.id,
+        attendeeEmail: evt.attendees?.[0]?.email,
+        hostEmail: organizerUser.email,
+        title: evt.title,
+        attendeePhone: (evt.attendees?.[0] as { phoneNumber?: string } | undefined)?.phoneNumber,
+      });
+      if (booking?.uid) {
+        const { writeBookingAudit } = await import("@calcom/features/bookings/lib/writeBookingAudit");
+        await writeBookingAudit(
+          deps.prismaClient,
+          booking.uid,
+          trigger === "BOOKING_RESCHEDULED" ? "RESCHEDULED" : "CREATED"
+        );
+      }
+    }
   }
 
   if (!booking) throw new HttpError({ statusCode: 400, message: "Booking failed" });

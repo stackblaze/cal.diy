@@ -340,6 +340,17 @@ async function handler(input: CancelBookingInput, dependencies?: Dependencies) {
     })
   );
   await Promise.all(promises);
+  const { runExtWorkflows } = await import("@calcom/features/workflows/runExtWorkflows");
+  await runExtWorkflows({
+    trigger: "BOOKING_CANCELLED",
+    eventTypeId: bookingToDelete.eventTypeId,
+    teamId: bookingToDelete.eventType?.teamId ?? bookingToDelete.eventType?.team?.id,
+    userId: bookingToDelete.userId,
+    attendeeEmail: bookingToDelete.attendees?.[0]?.email,
+    hostEmail: organizer.email,
+    title: bookingToDelete.title,
+    attendeePhone: bookingToDelete.attendees?.[0]?.phoneNumber,
+  });
 
   let updatedBookings: {
     id: number;

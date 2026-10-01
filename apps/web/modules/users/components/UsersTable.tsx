@@ -12,6 +12,7 @@ import { TextField } from "@calcom/ui/components/form";
 import { DropdownActions, Table } from "@calcom/ui/components/table";
 import { showToast } from "@calcom/ui/components/toast";
 import { keepPreviousData } from "@tanstack/react-query";
+import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -79,6 +80,14 @@ export function UsersTable() {
     onSuccess: () => {
       showToast(t("two_factor_removed"), "success");
     },
+  });
+
+  const impersonate = trpc.viewer.organizations.impersonate.useMutation({
+    onSuccess: async ({ token }) => {
+      showToast("Impersonating user", "success");
+      await signIn("impersonate", { token, callbackUrl: "/" });
+    },
+    onError: (error) => showToast(error.message, "error"),
   });
 
   const lockUserAccount = trpc.viewer.admin.lockUserAccount.useMutation({
@@ -174,6 +183,12 @@ export function UsersTable() {
                           label: t("edit"),
                           href: `/settings/admin/users/${user.id}/edit`,
                           icon: "pencil" as const,
+                        },
+                        {
+                          id: "impersonate",
+                          label: t("impersonate") || "Impersonate",
+                          onClick: () => impersonate.mutate({ userId: user.id }),
+                          icon: "user" as const,
                         },
                         {
                           id: "reset-password",

@@ -10,12 +10,7 @@ import type { z } from "zod";
 import type { TrpcSessionUser } from "../../../../types";
 import type { TCreateInputSchema } from "./create.schema";
 
-class PermissionCheckService {
-  constructor(_prisma?: unknown) {}
-  async checkPermission(..._args: unknown[]) { return true; }
-  async hasPermission(..._args: unknown[]) { return true; }
-  async getTeamIdsWithPermission(..._args: unknown[]): Promise<number[]> { return []; }
-}
+import { PermissionCheckService } from "@calcom/features/pbac/services/permission-check.service";
 
 type EventTypeLocation = z.infer<typeof eventTypeLocations>[number];
 
@@ -154,6 +149,43 @@ export const createHandler = async ({ ctx, input }: CreateOptions) => {
       ...data,
       profileId: profile.id,
     });
+    if (teamId && schedulingType && schedulingType !== SchedulingType.MANAGED) {
+      const members = await ctx.prisma.membership.findMany({
+        where: { teamId, accepted: true },
+        select: { userId: true, id: true },
+      });
+      if (members.length) {
+        await ctx.prisma.host.createMany({
+          data: members.map((member, index) => ({
+            userId: member.userId,
+            eventTypeId: eventType.id,
+            isFixed: schedulingType === SchedulingType.COLLECTIVE,
+            priority: index,
+            memberId: member.id,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
+    if (teamId && schedulingType === SchedulingType.MANAGED) {
+      const members = await ctx.prisma.membership.findMany({
+        where: { teamId, accepted: true },
+        select: { userId: true },
+      });
+      for (const member of members) {
+        await ctx.prisma.eventType.create({
+          data: {
+            title: rest.title,
+            slug: rest.slug,
+            length: rest.length,
+            hidden: true,
+            parent: { connect: { id: eventType.id } },
+            owner: { connect: { id: member.userId } },
+            users: { connect: { id: member.userId } },
+          },
+        }).catch(() => undefined);
+      }
+    }
     return { eventType };
   } catch (e) {
     console.warn(e);
