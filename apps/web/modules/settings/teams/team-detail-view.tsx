@@ -77,7 +77,7 @@ export default function TeamDetailView({ teamId }: { teamId: number }) {
               {!member.accepted ? " (pending)" : ""}
             </span>
             <Button
-              variant="ghost"
+              color="minimal"
               size="sm"
               onClick={() => remove.mutate({ teamId, userId: member.userId })}>
               Remove
@@ -93,7 +93,7 @@ export default function TeamDetailView({ teamId }: { teamId: number }) {
         </p>
         <Button
           size="sm"
-          variant="outline"
+          color="secondary"
           onClick={() =>
             setAvailability.mutate({
               teamId,
@@ -114,7 +114,7 @@ export default function TeamDetailView({ teamId }: { teamId: number }) {
               {eventType.schedulingType && (
                 <Button
                   size="sm"
-                  variant="ghost"
+                  color="minimal"
                   onClick={() =>
                     setHosts.mutate({
                       eventTypeId: eventType.id,

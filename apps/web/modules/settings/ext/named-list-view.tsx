@@ -45,7 +45,7 @@ export function WorkflowsView() {
             <span>
               {row.name} · {row.trigger}
             </span>
-            <Button variant="ghost" size="sm" onClick={() => remove.mutate({ id: row.id })}>
+            <Button color="minimal" size="sm" onClick={() => remove.mutate({ id: row.id })}>
               Delete
             </Button>
           </li>
@@ -92,7 +92,7 @@ export function RoutingFormsView() {
             <span>
               {row.name} · {row._count.responses} responses · /r/{row.id}
             </span>
-            <Button variant="ghost" size="sm" onClick={() => remove.mutate({ id: row.id })}>
+            <Button color="minimal" size="sm" onClick={() => remove.mutate({ id: row.id })}>
               Delete
             </Button>
           </li>
