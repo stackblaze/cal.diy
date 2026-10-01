@@ -8,7 +8,7 @@ import { useState } from "react";
 export default function PublicRoutingFormPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const id = Number(params.id);
+  const id = Number(params?.id);
   const { data: form } = trpc.viewer.routingForms.getPublic.useQuery({ id }, { enabled: !!id });
   const submit = trpc.viewer.routingForms.submit.useMutation({
     onSuccess: (result) => {

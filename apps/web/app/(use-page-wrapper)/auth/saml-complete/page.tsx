@@ -7,8 +7,8 @@ import { useEffect } from "react";
 export default function SamlCompletePage() {
   const params = useSearchParams();
   useEffect(() => {
-    const token = params.get("token");
-    const callbackUrl = params.get("callbackUrl") || "/";
+    const token = params?.get("token");
+    const callbackUrl = params?.get("callbackUrl") || "/";
     if (!token) return;
     void signIn("impersonate", { token, callbackUrl });
   }, [params]);
