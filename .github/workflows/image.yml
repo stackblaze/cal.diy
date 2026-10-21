@@ -15,10 +15,17 @@ permissions:
 
 jobs:
   build:
-    runs-on: [self-hosted, us-east-1]
+    runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+
+      # GitHub-hosted runners start with ~14 GB free; this monorepo image
+      # build needs more, so drop preinstalled SDKs we don't use.
+      - name: Free runner disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
 
       - name: Image tag
         id: ver
